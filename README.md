@@ -9,7 +9,7 @@ Dieses Projekt ist ein verteiltes Blog-Management-System, das Quarkus und Kafka 
 -   **Blog Backend**:
     
     -   Verwaltung von Blogbeitr채gen
-    -   Versendet Validierungsanfragen f체r Blogeintr채ge 체ber Kafka an den `text-validation-service`
+    -   Versendet Validierungsanfragen f체r Blogeintr채ge 체ber Kafka an den `validation-service`
     -   Speichert validierte bzw. nicht validierte Blogeintr채ge in der Datenbank
   -   **Kafka**:
     
@@ -43,7 +43,7 @@ Die Container-Images sind bereits in GHCR gespeichert. Die neuesten Versionen k�
 
 ```sh
 docker pull ghcr.io/myster-blues-woman/blog-backend:latest
-docker pull ghcr.io/myster-blues-woman/text-validation-service:latest
+docker pull ghcr.io/myster-blues-woman/validation-service:latest
 
 ```
 

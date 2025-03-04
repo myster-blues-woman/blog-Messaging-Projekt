@@ -38,9 +38,9 @@ services:
     ports:
       - "8080:8080"
 
-  text-validation:
-    image: ghcr.io/myster-blues-woman/text-validation-service:latest
-    container_name: text-validation
+  validation-service:
+    image: ghcr.io/myster-blues-woman/validation-service:latest
+    container_name: validation
     networks:
       - blog-net
     depends_on:

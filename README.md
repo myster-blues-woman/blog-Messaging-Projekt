@@ -61,6 +61,9 @@ Dadurch werden folgende Dienste gestartet:
 -   Kafka (`redpanda`)
 -   PostgreSQL (Datenbank für `blog-backend`)
 
+![image](https://github.com/user-attachments/assets/2f221edb-a1df-4c96-9e06-4c35f4124b1c)
+
+
 ### Dienste stoppen
 
 ```sh

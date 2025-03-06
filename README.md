@@ -87,6 +87,14 @@ Der `text-validation-service` stellt sicher, dass Blogeinträge bestimmten Anfor
 
 ----------
 
+Datenfluss von der Erstellung eines Blog-Eintrags bis zur Aktualisierung des Validierungsstatus.
+1.	Ein Benutzer erstellt einen neuen Blog-Eintrag über das Blog-Backend.
+2.	Das Blog-Backend speichert den Eintrag in der Datenbank und sendet eine Nachricht an ein Kafka-Topic, um den Validierungsservice zu benachrichtigen.
+3.	Der Validierungsservice empfängt die Nachricht, validiert den Blog-Eintrag und aktualisiert den Validierungsstatus.
+4.	Der Validierungsservice sendet eine Nachricht zurück an das Blog-Backend, um den neuen Validierungsstatus zu übermitteln.
+5.	Das Blog-Backend aktualisiert den Validierungsstatus des Blog-Eintrags in der Datenbank.
+
+
 ## API-Anwendungsfälle
 
 ### Blog erstellen (mit erfolgreicher Validierung)

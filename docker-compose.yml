@@ -1,15 +1,5 @@
 version: '3.8'
 services:
-  redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:v23.3.5
-    container_name: redpanda-1
-    networks:
-      - blog-net
-    ports:
-      - "9092:9092"  # Kafka Port
-      - "8081:8081"  # Redpanda Console Port
-    command: redpanda start --advertise-kafka-addr redpanda-1:9092
-
   database:
     image: postgres:15
     container_name: blog-db
@@ -22,33 +12,17 @@ services:
     ports:
       - "5432:5432"
 
-  blog-backend:
-    image: ghcr.io/myster-blues-woman/blog-backend:latest
-    container_name: blog-backend
-    networks:
-      - blog-net
-    depends_on:
-      - database
-      - redpanda
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: redpanda-1:9092
-      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://database:5432/blog_db
-      QUARKUS_DATASOURCE_USERNAME: blog_user
-      QUARKUS_DATASOURCE_PASSWORD: blog_pass
+  minio:
+    image: quay.io/minio/minio
     ports:
-      - "8080:8080"
-
-  validation-service:
-    image: ghcr.io/myster-blues-woman/validation-service:latest
-    container_name: validation
-    networks:
-      - blog-net
-    depends_on:
-      - redpanda
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: redpanda-1:9092
-    ports:
-      - "8082:8080"
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - ./minio-data:/data
+    command: server /data --console-address ":9001"
 
 networks:
   blog-net:

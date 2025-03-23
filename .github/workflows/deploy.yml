@@ -14,12 +14,44 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Deploy to Azure Container Apps
+
+      - name: Login to Azure Container Registry (ACR)
+        uses: azure/docker-login@v1
+        with:
+          login-server: mystudentacr.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: mystudentacr.azurecr.io/quarkus-minio-app:latest
+
+      - name: Create Container App if not exists
+        run: |
+          az config set extension.use_dynamic_install=yes_without_prompt
+          if ! az containerapp show --name quarkus-minio-app --resource-group minio-quarkus-group &> /dev/null; then
+            echo "Creating Container App quarkus-minio-app..."
+            az containerapp create \
+              --name quarkus-minio-app \
+              --resource-group minio-quarkus-group \
+              --environment minio-quarkus-env \
+              --image mystudentacr.azurecr.io/quarkus-minio-app:latest \
+              --target-port 8080 \
+              --ingress external \
+              --registry-login-server mystudentacr.azurecr.io \
+              --registry-username ${{ secrets.ACR_USERNAME }} \
+              --registry-password ${{ secrets.ACR_PASSWORD }}
+          else
+            echo "Container App quarkus-minio-app already exists."
+          fi
+
+      - name: Deploy updated image to Azure Container App
         uses: azure/container-apps-deploy-action@v1
         with:
-          appSourcePath: ${{ github.workspace }}
           acrName: mystudentacr
           resourceGroup: minio-quarkus-group
           containerAppName: quarkus-minio-app
-          targetPort: 8080
+          imageToDeploy: mystudentacr.azurecr.io/quarkus-minio-app:latest

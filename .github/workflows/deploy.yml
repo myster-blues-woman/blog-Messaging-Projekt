@@ -50,6 +50,11 @@ jobs:
               --resource-group minio-quarkus-group \
               --image quay.io/minio/minio
           fi
+     
+      - name: Register PostgreSQL Resource Provider if needed
+        run: |
+          az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv | grep -q Registered || \
+          az provider register --namespace Microsoft.DBforPostgreSQL          
 
       - name: Create PostgreSQL Flexible Server (Burstable SKU)
         run: |

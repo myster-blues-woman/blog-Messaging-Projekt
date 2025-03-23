@@ -15,12 +15,8 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Login to Azure Container Registry (ACR)
-        uses: azure/docker-login@v1
-        with:
-          login-server: mystudentacr.azurecr.io
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Azure Container Registry Login
+        run: az acr login --name mystudentacr
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
@@ -41,9 +37,7 @@ jobs:
               --image mystudentacr.azurecr.io/quarkus-minio-app:latest \
               --target-port 8080 \
               --ingress external \
-              --registry-login-server mystudentacr.azurecr.io \
-              --registry-username ${{ secrets.ACR_USERNAME }} \
-              --registry-password ${{ secrets.ACR_PASSWORD }}
+              --registry-server mystudentacr.azurecr.io
           else
             echo "Container App quarkus-minio-app already exists."
           fi

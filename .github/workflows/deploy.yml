@@ -17,13 +17,11 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Optional: Create Resource Group if it doesn't exist
       - name: Create Resource Group if not exists
         run: |
           az group show --name minio-quarkus-group || \
           az group create --name minio-quarkus-group --location westeurope
 
-      # Step 1: Create Container App Environment (for MinIO)
       - name: Create Container App Environment if not exists
         run: |
           az config set extension.use_dynamic_install=yes_without_prompt
@@ -33,7 +31,6 @@ jobs:
             --resource-group minio-quarkus-group \
             --location westeurope
 
-      # Step 2: Deploy MinIO as Azure Container App
       - name: Create or Update MinIO Container App
         run: |
           if ! az containerapp show --name minio-app --resource-group minio-quarkus-group &> /dev/null; then
@@ -54,24 +51,7 @@ jobs:
               --image quay.io/minio/minio
           fi
 
-      # Step 3: Create PostgreSQL Flexible Server if not exists
-      - name: Create PostgreSQL Flexible Server
-        run: |
-          if ! az postgres flexible-server show --name blog-db --resource-group minio-quarkus-group &> /dev/null; then
-            az postgres flexible-server create \
-              --resource-group minio-quarkus-group \
-              --name blog-db \
-              --admin-user blog_user \
-              --admin-password blog_pass123! \
-              --sku-name Standard_B1ms \
-              --version 15 \
-              --location westeurope
-          else
-            echo "PostgreSQL server already exists."
-          fi
-
-      # Optional: Allow public access to PostgreSQL (use with caution in production)
-      - name: Create PostgreSQL Flexible Server
+      - name: Create PostgreSQL Flexible Server (Burstable SKU)
         run: |
           if ! az postgres flexible-server show --name blog-db --resource-group minio-quarkus-group &> /dev/null; then
             az postgres flexible-server create \
@@ -87,3 +67,11 @@ jobs:
             echo "PostgreSQL server already exists."
           fi
 
+      - name: Allow public access to PostgreSQL (Optional for testing)
+        run: |
+          az postgres flexible-server firewall-rule create \
+            --resource-group minio-quarkus-group \
+            --name blog-db \
+            --rule-name AllowAll \
+            --start-ip-address 0.0.0.0 \
+            --end-ip-address 255.255.255.255

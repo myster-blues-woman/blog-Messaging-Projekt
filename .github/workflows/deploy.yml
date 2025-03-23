@@ -22,27 +22,6 @@ jobs:
           az group show --name minio-quarkus-group || \
           az group create --name minio-quarkus-group --location westeurope
 
-      - name: Register PostgreSQL Resource Provider if needed
-        run: |
-          az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv | grep -q Registered || \
-          az provider register --namespace Microsoft.DBforPostgreSQL
-      
-          echo "Waiting for Microsoft.DBforPostgreSQL resource provider to register..."
-          for i in {1..10}; do
-            state=$(az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv)
-            echo "Current state: $state"
-            if [ "$state" == "Registered" ]; then
-              echo "Provider registered!"
-              break
-            fi
-            sleep 10
-          done
-      
-          if [ "$state" != "Registered" ]; then
-            echo "ERROR: Provider registration did not complete in time."
-            exit 1
-          fi
-
       - name: Create Container App Environment if not exists
         run: |
           az config set extension.use_dynamic_install=yes_without_prompt
@@ -71,29 +50,3 @@ jobs:
               --resource-group minio-quarkus-group \
               --image quay.io/minio/minio
           fi
-
-      - name: Create PostgreSQL Flexible Server (Burstable SKU)
-        run: |
-          if ! az postgres flexible-server show --name blog-db --resource-group minio-quarkus-group &> /dev/null; then
-            az postgres flexible-server create \
-              --resource-group minio-quarkus-group \
-              --name blog-db \
-              --admin-user blog_user \
-              --admin-password blog_pass123! \
-              --tier Burstable \
-              --sku-name Standard_B1ms \
-              --version 15 \
-              --location westeurope \
-              --yes
-          else
-            echo "PostgreSQL server already exists."
-          fi
-
-      - name: Allow public access to PostgreSQL (Optional for testing)
-        run: |
-          az postgres flexible-server firewall-rule create \
-            --resource-group minio-quarkus-group \
-            --name blog-db \
-            --rule-name AllowAll \
-            --start-ip-address 0.0.0.0 \
-            --end-ip-address 255.255.255.255

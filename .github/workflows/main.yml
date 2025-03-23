@@ -1,0 +1,25 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [ file-storage ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Deploy to Azure Container Apps
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: ${{ github.workspace }}
+          acrName: yourAcrName
+          resourceGroup: minio-quarkus-group
+          containerAppName: quarkus-minio-app
+          targetPort: 8080

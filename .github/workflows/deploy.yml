@@ -1,51 +1,81 @@
-name: Deploy to Azure
+name: Deploy MinIO and PostgreSQL to Azure
 
 on:
   push:
-    branches: [ file-storage ]
+    branches: [file-storage]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v2
-      
+      - name: Checkout code
+        uses: actions/checkout@v2
+
       - name: Login to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Azure Container Registry Login
-        run: az acr login --name mystudentacr
+      # Optional: Create Resource Group if it doesn't exist
+      - name: Create Resource Group if not exists
+        run: |
+          az group show --name minio-quarkus-group || \
+          az group create --name minio-quarkus-group --location westeurope
 
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: mystudentacr.azurecr.io/quarkus-minio-app:latest
-
-      - name: Create Container App if not exists
+      # Step 1: Create Container App Environment (for MinIO)
+      - name: Create Container App Environment if not exists
         run: |
           az config set extension.use_dynamic_install=yes_without_prompt
-          if ! az containerapp show --name quarkus-minio-app --resource-group minio-quarkus-group &> /dev/null; then
-            echo "Creating Container App quarkus-minio-app..."
+          az containerapp env show --name minio-quarkus-env --resource-group minio-quarkus-group || \
+          az containerapp env create \
+            --name minio-quarkus-env \
+            --resource-group minio-quarkus-group \
+            --location westeurope
+
+      # Step 2: Deploy MinIO as Azure Container App
+      - name: Create or Update MinIO Container App
+        run: |
+          if ! az containerapp show --name minio-app --resource-group minio-quarkus-group &> /dev/null; then
             az containerapp create \
-              --name quarkus-minio-app \
+              --name minio-app \
               --resource-group minio-quarkus-group \
               --environment minio-quarkus-env \
-              --image mystudentacr.azurecr.io/quarkus-minio-app:latest \
-              --target-port 8080 \
+              --image quay.io/minio/minio \
+              --target-port 9000 \
               --ingress external \
-              --registry-server mystudentacr.azurecr.io
+              --env-vars MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin \
+              --args "server /data --console-address :9001"
           else
-            echo "Container App quarkus-minio-app already exists."
+            echo "MinIO App exists. Updating image..."
+            az containerapp update \
+              --name minio-app \
+              --resource-group minio-quarkus-group \
+              --image quay.io/minio/minio
           fi
 
-      - name: Deploy updated image to Azure Container App
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          acrName: mystudentacr
-          resourceGroup: minio-quarkus-group
-          containerAppName: quarkus-minio-app
-          imageToDeploy: mystudentacr.azurecr.io/quarkus-minio-app:latest
+      # Step 3: Create PostgreSQL Flexible Server if not exists
+      - name: Create PostgreSQL Flexible Server
+        run: |
+          if ! az postgres flexible-server show --name blog-db --resource-group minio-quarkus-group &> /dev/null; then
+            az postgres flexible-server create \
+              --resource-group minio-quarkus-group \
+              --name blog-db \
+              --admin-user blog_user \
+              --admin-password blog_pass123! \
+              --sku-name Standard_B1ms \
+              --version 15 \
+              --location westeurope
+          else
+            echo "PostgreSQL server already exists."
+          fi
+
+      # Optional: Allow public access to PostgreSQL (use with caution in production)
+      - name: Allow public access to PostgreSQL (Optional)
+        run: |
+          az postgres flexible-server firewall-rule create \
+            --resource-group minio-quarkus-group \
+            --name blog-db \
+            --rule-name AllowAll \
+            --start-ip-address 0.0.0.0 \
+            --end-ip-address 255.255.255.255

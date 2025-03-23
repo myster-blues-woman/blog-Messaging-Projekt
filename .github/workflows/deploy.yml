@@ -62,7 +62,8 @@ jobs:
               --tier Burstable \
               --sku-name Standard_B1ms \
               --version 15 \
-              --location westeurope
+              --location westeurope \
+              --yes
           else
             echo "PostgreSQL server already exists."
           fi

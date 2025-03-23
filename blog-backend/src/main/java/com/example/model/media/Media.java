@@ -2,55 +2,42 @@ package com.example.model.media;
 
 import java.time.Instant;
 
+import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "media")
-public class Media {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class Media extends PanacheEntity {
 
-    @Column(nullable = false)
-    private String filename;
+    @Column(nullable = true)
+    private String fileName;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String originalFilename;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String contentType;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Long size;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String storagePath;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Instant createdAt;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String createdBy;
 
-    public Long getId() {
-        return id;
+    public String getFileName() {
+        return fileName;
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getFilename() {
-        return filename;
-    }
-
-    public void setFilename(String filename) {
-        this.filename = filename;
+    public void setFileName(String filename) {
+        this.fileName = filename;
     }
 
     public String getOriginalFilename() {

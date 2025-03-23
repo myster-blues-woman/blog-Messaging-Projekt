@@ -5,13 +5,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import com.example.dto.MediaFileDTO;
 import com.example.service.media.MediaRepository;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 
 import io.minio.*;
 import io.minio.errors.MinioException;
+import io.minio.messages.Item;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -24,6 +33,7 @@ public class MinioService {
     MediaRepository mediaRepository;
 
     private MinioClient minioClient;
+    private Cache<String, byte[]> mediaCache;
 
     @ConfigProperty(name = "quarkus.minio.url")
     String minioUrl;
@@ -39,6 +49,11 @@ public class MinioService {
 
     @PostConstruct
     public void init() {
+        mediaCache = Caffeine.newBuilder()
+                .maximumSize(100) // Max 100 items in cache
+                .expireAfterWrite(10, TimeUnit.MINUTES) // Cache expires after 10 minutes
+                .build();
+
         System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
         this.minioClient = MinioClient.builder()
                 .endpoint(minioUrl)
@@ -72,13 +87,26 @@ public class MinioService {
     }
 
     public InputStream downloadImage(String fileName)
-            throws InvalidKeyException, NoSuchAlgorithmException, IllegalArgumentException, IOException {
+            throws IOException, InvalidKeyException, NoSuchAlgorithmException, IllegalArgumentException {
         try {
-            return minioClient.getObject(
+            // Check cache first
+            byte[] cachedContent = mediaCache.getIfPresent(fileName);
+            if (cachedContent != null) {
+                return new ByteArrayInputStream(cachedContent);
+            }
+
+            // Fetch from MinIO if not in cache
+            InputStream contentStream = minioClient.getObject(
                     GetObjectArgs.builder()
                             .bucket(bucketName)
                             .object(fileName)
                             .build());
+            byte[] contentBytes = contentStream.readAllBytes();
+
+            // Store in cache
+            mediaCache.put(fileName, contentBytes);
+
+            return new ByteArrayInputStream(contentBytes);
         } catch (MinioException e) {
             throw new RuntimeException("Error retrieving file from MinIO: " + e.getMessage(), e);
         }
@@ -106,4 +134,32 @@ public class MinioService {
             throw new RuntimeException("Error initializing MinIO bucket: " + e.getMessage(), e);
         }
     }
+
+    public List<MediaFileDTO> listAllFilesWithContent() {
+        List<MediaFileDTO> files = new ArrayList<>();
+        try {
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder().bucket(bucketName).recursive(true).build());
+
+            for (Result<Item> result : results) {
+                Item item = result.get();
+
+                InputStream contentStream = minioClient.getObject(
+                        GetObjectArgs.builder().bucket(bucketName).object(item.objectName()).build());
+                byte[] contentBytes = contentStream.readAllBytes();
+                String base64Content = Base64.getEncoder().encodeToString(contentBytes);
+
+                files.add(new MediaFileDTO(
+                        item.objectName(),
+                        minioUrl + "/" + bucketName + "/" + item.objectName(),
+                        item.size(),
+                        item.lastModified() != null ? item.lastModified().toString() : null,
+                        base64Content));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error listing files from MinIO: " + e.getMessage(), e);
+        }
+        return files;
+    }
+
 }

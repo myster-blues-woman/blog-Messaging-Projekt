@@ -2,15 +2,14 @@ package com.example.service.media;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import com.example.dto.MediaFileDTO;
 import com.example.model.media.Media;
 import com.example.service.storage.MinioService;
 
@@ -22,7 +21,7 @@ import jakarta.ws.rs.core.SecurityContext;
 @ApplicationScoped
 public class MediaService {
     @Inject
-    MinioService minioService2;
+    MinioService minioService;
 
     @Inject
     MediaRepository mediaRepository;
@@ -47,17 +46,22 @@ public class MediaService {
 
             // Upload to MinIO
             try {
-                minioService2.uploadImage(fileName, fileStream, fileSize, contentType);
+                minioService.uploadImage(fileName, fileStream, fileSize, contentType);
             } catch (Exception e) {
                 throw new IOException("Failed to upload file to storage service: " + e.getMessage(), e);
             }
 
             // Save metadata to database
             Media media = new Media();
-            media.setFilename(fileName);
+            media.setOriginalFilename(fileName);
+            media.setFileName(fileName);
             media.setContentType(contentType);
+            media.setSize(fileSize);
             media.setCreatedAt(Instant.now());
             media.setCreatedBy(getCurrentUser());
+
+            String storagePath = "blog-media" + fileName;
+            media.setStoragePath(storagePath);
 
             try {
                 return mediaRepository.save(media);
@@ -65,68 +69,27 @@ public class MediaService {
                 throw new RuntimeException("Failed to save media metadata to the database: " + e.getMessage(), e);
             }
         } catch (IllegalArgumentException e) {
-            throw e; // Re-throw validation exceptions
+            throw e;
         } catch (IOException e) {
-            throw e; // Re-throw IO exceptions
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("An unexpected error occurred during file upload: " + e.getMessage(), e);
         }
     }
 
-    // public Optional<Media> getMediaById(Long id) {
-    // return mediaRepository.findById(id);
-    // }
-
-    // public void deleteMedia(Long id) {
-    // mediaRepository.findById(id).ifPresent(media -> {
-    // // Delete from MinIO first
-    // minioService2.deleteFile(media.getFilename());
-    // // Then delete from database
-    // mediaRepository.delete(media);
-    // });
-    // }
-
     private String getCurrentUser() {
-        // Get the username of the current user
         if (securityContext.getUserPrincipal() != null) {
             return securityContext.getUserPrincipal().getName();
         }
-        return "unknown"; // Fallback if user is not authenticated
+        return "unknown";
     }
 
-    private String determineContentType(String originalFilename) {
-        try {
-            // Extract file extension
-            String fileExtension = getFileExtension(originalFilename);
-
-            // Get content type based on file extension
-            String contentType = Files.probeContentType(Paths.get(originalFilename));
-
-            // If probeContentType is null, assign a default content type based on the
-            // extension
-            if (contentType == null) {
-                contentType = switch (fileExtension) {
-                    case "jpg", "jpeg" -> "image/jpeg";
-                    case "png" -> "image/png";
-                    case "gif" -> "image/gif";
-                    case "pdf" -> "application/pdf";
-                    case "txt" -> "text/plain";
-                    default -> "application/octet-stream"; // Unknown file type
-                };
-            }
-
-            return contentType;
-
-        } catch (IOException e) {
-            throw new RuntimeException("Error determining content type", e);
-        }
+    public List<MediaFileDTO> listAllMedia() {
+        return minioService.listAllFilesWithContent();
     }
 
-    private String getFileExtension(String filename) {
-        int dotIndex = filename.lastIndexOf('.');
-        if (dotIndex > 0) {
-            return filename.substring(dotIndex + 1).toLowerCase();
-        }
-        return ""; // No extension
+    public InputStream downloadFile(String fileName)
+            throws InvalidKeyException, NoSuchAlgorithmException, IllegalArgumentException, IOException {
+        return minioService.downloadImage(fileName);
     }
 }

@@ -1,37 +1,43 @@
 package com.example.model.blog;
 
-import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.example.model.media.Media;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "blog")
 public class Blog extends PanacheEntity {
 
-    @Schema(hidden = true)
-    public Long id;
+    @Column(nullable = false, unique = true)
+    public String title;
 
-    public String name;
-    public String description;
+    @Column(columnDefinition = "TEXT")
+    public String content;
 
-    @Schema(hidden = true)
-    public boolean validated = false;
+    public String headerImageUrl;
 
-    @ManyToOne
-    @JoinColumn(name = "media_id")
-    private Media media;
+    public LocalDateTime createdAt;
 
-    public Media getMedia() {
-        return media;
-    }
+    public boolean validated;
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "blog_media", joinColumns = @JoinColumn(name = "blog_id"), inverseJoinColumns = @JoinColumn(name = "media_id"))
+    public Set<Media> mediaFiles = new HashSet<>();
 
-    public void setMedia(Media media) {
-        this.media = media;
+    public void addMedia(Media media) {
+        if (this.mediaFiles == null) {
+            this.mediaFiles = new HashSet<>();
+        }
+        this.mediaFiles.add(media);
     }
 }

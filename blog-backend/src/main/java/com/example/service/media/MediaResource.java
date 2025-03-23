@@ -1,6 +1,7 @@
 package com.example.service.media;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
@@ -15,10 +16,12 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
+import com.example.dto.MediaFileDTO;
 import com.example.model.media.Media;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -66,14 +69,12 @@ public class MediaResource {
             String extension = getFileExtension(originalFilename);
             String uniqueFilename = UUID.randomUUID().toString() + "." + extension;
 
-            // Upload file using MediaService
             Media savedMedia = mediaService.uploadImage(
                     uniqueFilename,
                     Files.newInputStream(file.uploadedFile()),
                     file.size(),
                     contentType);
 
-            // Return success response with media information
             return Response.status(Status.CREATED)
                     .entity(savedMedia)
                     .build();
@@ -96,4 +97,39 @@ public class MediaResource {
         }
         return ""; // No extension
     }
+
+    @GET
+    @Path("/")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Liste aller Medien abrufen", description = "Gibt eine Liste aller gespeicherten Mediendateien zurück")
+    @APIResponse(responseCode = "200", description = "Liste der Mediendateien", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = Media.class)))
+    public Response listMedia() {
+        try {
+            List<MediaFileDTO> mediaList = mediaService.listAllMedia();
+            return Response.ok(mediaList).build();
+        } catch (Exception e) {
+            return Response.status(Status.INTERNAL_SERVER_ERROR)
+                    .entity("{\"error\": \"Failed to fetch media: " + e.getMessage() + "\"}")
+                    .build();
+        }
+    }
+
+    @GET
+    @Path("/download/{fileName}")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    @Operation(summary = "Download einer Mediendatei", description = "Lädt eine gespeicherte Datei direkt herunter")
+    @APIResponse(responseCode = "200", description = "Datei wird heruntergeladen")
+    public Response downloadFile(@jakarta.ws.rs.PathParam("fileName") String fileName) {
+        try {
+            InputStream fileStream = mediaService.downloadFile(fileName);
+            return Response.ok(fileStream)
+                    .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
+                    .build();
+        } catch (Exception e) {
+            return Response.status(Status.INTERNAL_SERVER_ERROR)
+                    .entity("{\"error\": \"Failed to download file: " + e.getMessage() + "\"}")
+                    .build();
+        }
+    }
+
 }

@@ -1,85 +1,60 @@
 package com.example.service.blog;
 
-import com.example.dto.BlogValidationRequest;
-import com.example.dto.BlogValidationResponse;
 import com.example.model.blog.Blog;
-
+import com.example.model.media.Media;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.eclipse.microprofile.reactive.messaging.Channel;
-import org.eclipse.microprofile.reactive.messaging.Emitter;
-import org.eclipse.microprofile.reactive.messaging.Incoming;
-import org.jboss.logging.Logger;
-import java.util.Optional;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @ApplicationScoped
 public class BlogService {
 
-    private static final Logger LOG = Logger.getLogger(BlogService.class);
-
-    @Inject
-    @Channel("validation-requests")
-    Emitter<BlogValidationRequest> blogValidationRequestEmitter;
-
-    /**
-     * Saves the blog entry in the database.
-     *
-     * @param blog The blog entry to be persisted.
-     * @return The persisted blog entry.
-     */
     @Transactional
-    public Blog publishBlogEntry(Blog blog) {
+    public Blog prepareAndValidateBlogPost(Blog blog) {
+        if (blog.title == null || blog.title.trim().isEmpty()) {
+            throw new WebApplicationException("Blog title cannot be empty", Response.Status.BAD_REQUEST);
+        }
+
+        if (Blog.count("title = ?1 and id != ?2", blog.title, blog.id == null ? -1 : blog.id) > 0) {
+            throw new WebApplicationException("Blog with this title already exists", Response.Status.CONFLICT);
+        }
+
+        if (blog.id == null) {
+            blog.createdAt = LocalDateTime.now();
+        }
+
         blog.persist();
         return blog;
     }
 
-    /**
-     * Prepares and validates the blog post by persisting it and initiating content
-     * validation.
-     *
-     * @param blog The blog entry to be prepared and validated.
-     */
-    public void prepareAndValidateBlogPost(Blog blog) {
-        Blog publishedBlog = publishBlogEntry(blog);
-        initiateContentValidation(publishedBlog);
-    }
-
-    /**
-     * Initiates the validation process for the blog content.
-     *
-     * @param blog The blog entry that needs to be validated.
-     */
-    private void initiateContentValidation(Blog blog) {
-        LOG.infof("Initiating blog content validation for blog ID: %s", blog.id);
-        BlogValidationRequest validationRequest = new BlogValidationRequest(blog.id, blog.name, blog.description);
-        blogValidationRequestEmitter.send(validationRequest)
-                .toCompletableFuture().join();
-
-        LOG.info("Blog validation request sent successfully: " + validationRequest);
-    }
-
-    /**
-     * Processes incoming validation responses and updates the validation status of
-     * the corresponding blog entry.
-     *
-     * @param response The validation response containing the blog ID and validation
-     *                 status.
-     */
     @Transactional
-    public void updateBlogValidationStatus(BlogValidationResponse response) {
-        LOG.infof("Processing blog validation response: ID=%s, Valid=%s", response.id(), response.valid());
-
-        Optional<Blog> blogOptional = Blog.findByIdOptional(response.id());
-        if (blogOptional.isEmpty()) {
-            LOG.warn("Blog entry not found for validation update");
-            return;
+    public Blog addMediaToPost(Long blogId, Long mediaId) {
+        Blog blog = Blog.findById(blogId);
+        if (blog == null) {
+            throw new WebApplicationException("Blog not found", Response.Status.NOT_FOUND);
         }
 
-        Blog blog = blogOptional.get();
-        blog.validated = response.valid();
-        blog.persist();
+        Media media = Media.findById(mediaId);
+        if (media == null) {
+            throw new WebApplicationException("Media not found", Response.Status.NOT_FOUND);
+        }
 
-        LOG.infof("Updated blog validation status: %s -> %s", blog.id, response.valid());
+        blog.addMedia(media);
+        return blog;
+    }
+
+    public List<Blog> getAllBlogs() {
+        return Blog.listAll();
+    }
+
+    public Blog getBlogById(Long id) {
+        return Blog.findById(id);
+    }
+
+    public List<Blog> getValidatedBlogs() {
+        return Blog.list("validated", true);
     }
 }

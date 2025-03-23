@@ -71,11 +71,19 @@ jobs:
           fi
 
       # Optional: Allow public access to PostgreSQL (use with caution in production)
-      - name: Allow public access to PostgreSQL (Optional)
+      - name: Create PostgreSQL Flexible Server
         run: |
-          az postgres flexible-server firewall-rule create \
-            --resource-group minio-quarkus-group \
-            --name blog-db \
-            --rule-name AllowAll \
-            --start-ip-address 0.0.0.0 \
-            --end-ip-address 255.255.255.255
+          if ! az postgres flexible-server show --name blog-db --resource-group minio-quarkus-group &> /dev/null; then
+            az postgres flexible-server create \
+              --resource-group minio-quarkus-group \
+              --name blog-db \
+              --admin-user blog_user \
+              --admin-password blog_pass123! \
+              --tier Burstable \
+              --sku-name Standard_B1ms \
+              --version 15 \
+              --location westeurope
+          else
+            echo "PostgreSQL server already exists."
+          fi
+

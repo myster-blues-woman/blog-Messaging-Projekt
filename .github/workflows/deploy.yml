@@ -22,6 +22,11 @@ jobs:
           az group show --name minio-quarkus-group || \
           az group create --name minio-quarkus-group --location westeurope
 
+      - name: Register PostgreSQL Resource Provider if needed
+        run: |
+          az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv | grep -q Registered || \
+          az provider register --namespace Microsoft.DBforPostgreSQL
+
       - name: Create Container App Environment if not exists
         run: |
           az config set extension.use_dynamic_install=yes_without_prompt
@@ -50,11 +55,6 @@ jobs:
               --resource-group minio-quarkus-group \
               --image quay.io/minio/minio
           fi
-     
-      - name: Register PostgreSQL Resource Provider if needed
-        run: |
-          az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv | grep -q Registered || \
-          az provider register --namespace Microsoft.DBforPostgreSQL          
 
       - name: Create PostgreSQL Flexible Server (Burstable SKU)
         run: |
